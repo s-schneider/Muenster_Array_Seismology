@@ -23,9 +23,12 @@ from scipy.integrate import cumtrapz
 from obspy.core import Stream
 from obspy.signal.headers import clibsignal
 from obspy.signal.invsim import cosTaper
+<<<<<<< HEAD
 """
 New Comment 3
 """
+=======
+>>>>>>> upstream/master
 
 KM_PER_DEG = 111.1949
 
