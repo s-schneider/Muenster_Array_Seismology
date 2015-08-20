@@ -8,7 +8,9 @@ import matplotlib.pyplot as plt
 from matplotlib.ticker import MaxNLocator
 from obspy import UTCDateTime, Stream
 from obspy.core import AttribDict
-from obspy.core.util.geodetics import locations2degrees, gps2DistAzimuth, \
+#from obspy.core.util.geodetics import locations2degrees, gps2DistAzimuth, \
+#    kilometer2degrees
+from obspy.geodetics import locations2degrees, gps2DistAzimuth, \
     kilometer2degrees
 from obspy.taup import getTravelTimes
 import scipy.interpolate as spi
@@ -1654,14 +1656,80 @@ def shifttrace_freq(stream, t_shift):
             tr1 = np.fft.irfft(tr1, nfft)
             tr.data = tr1[0:ndat]
 
-def geometrical_center(self):
-    extent = self.extent
+
+"""
+NEW STUFF
+"""
+
+def get_coords(inventory):
+    """
+    Get the coordinates of the stations in the inventory, independently of the channels,
+    better use for arrays, than the channel-dependent core.inventory.inventory.Inventory.get_coordinates() .
+    returns the variable coords with entries: elevation (in km), latitude and longitude.
+    :param inventory: Inventory to get the coordinates from
+    :type inventory: obspy.core.inventory.inventory.Inventory
+
+    :param coords: dictionary with stations of the inventory and its elevation (in km), latitude and longitude
+    :type coords: dict
+
+    """
+    coords = {}
+    for network in inventory:
+        for station in network:
+            coords["%s.%s" % (network.code, station.code)] = \
+                {"latitude": station.latitude,
+                 "longitude": station.longitude,
+                 "elevation": float(station.elevation) / 1000.0}
+    return coords
+
+def __coordinate_values(inventory):
+    geo = get_coords(inventory)
+    lats, lngs, hgt = [], [], []
+    for coordinates in list(geo.values()):
+        lats.append(coordinates["latitude"]),
+        lngs.append(coordinates["longitude"]),
+        hgt.append(coordinates["elevation"])
+    return lats, lngs, hgt
+
+def plot(inventory):
+    """
+    Function to plot the geometry of the array, 
+    including its center of gravity and geometrical center
+
+    :param inventory: Inventory to be plotted
+    """
+    if inventory:
+        inventory.plot(projection="local", show=False)
+        bmap = plt.gca().basemap
+
+        grav = center_of_gravity(inventory)
+        x, y = bmap(grav["longitude"], grav["latitude"])
+        bmap.scatter(x, y, marker="x", c="red", s=40, zorder=20)
+        plt.text(x, y, "Center of Gravity", color="red")
+
+        geo = geometrical_center(inventory)
+        x, y = bmap(geo["longitude"], geo["latitude"])
+        bmap.scatter(x, y, marker="x", c="green", s=40, zorder=20)
+        plt.text(x, y, "Geometrical Center", color="green")
+
+        plt.show()
+
+def center_of_gravity(inventory):
+    lats, lngs, hgts = __coordinate_values(inventory)
     return {
-        "latitude": (extent["max_latitude"] +
-                     extent["min_latitude"]) / 2.0,
-        "longitude": (extent["max_longitude"] +
-                      extent["min_longitude"]) / 2.0,
+        "latitude": np.mean(lats),
+        "longitude": np.mean(lngs),
+        "elevation": np.mean(hgts)}
+
+def geometrical_center(inventory):
+    lats, lngs, hgt = __coordinate_values(inventory)
+
+    return {
+        "latitude": (np.max(lats) +
+                     np.min(lats)) / 2.0,
+        "longitude": (np.max(lngs) +
+                      np.min(lngs)) / 2.0,
         "absolute_height_in_km":
-        (extent["min_absolute_height_in_km"] +
-         extent["max_absolute_height_in_km"]) / 2.0
+        (np.max(hgt) +
+         np.min(hgt)) / 2.0
     }
