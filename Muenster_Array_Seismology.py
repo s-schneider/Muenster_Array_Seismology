@@ -24,7 +24,7 @@ from obspy.core import Stream
 from obspy.signal.headers import clibsignal
 from obspy.signal.invsim import cosTaper
 """
-New Comment 2
+New Comment 3
 """
 
 KM_PER_DEG = 111.1949
@@ -1655,3 +1655,15 @@ def shifttrace_freq(stream, t_shift):
 
             tr1 = np.fft.irfft(tr1, nfft)
             tr.data = tr1[0:ndat]
+
+def geometrical_center(self):
+    extent = self.extent
+    return {
+        "latitude": (extent["max_latitude"] +
+                     extent["min_latitude"]) / 2.0,
+        "longitude": (extent["max_longitude"] +
+                      extent["min_longitude"]) / 2.0,
+        "absolute_height_in_km":
+        (extent["min_absolute_height_in_km"] +
+         extent["max_absolute_height_in_km"]) / 2.0
+    }
