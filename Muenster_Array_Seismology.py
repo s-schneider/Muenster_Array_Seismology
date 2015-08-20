@@ -24,7 +24,7 @@ from obspy.core import Stream
 from obspy.signal.headers import clibsignal
 from obspy.signal.invsim import cosTaper
 """
-New Comment
+New Comment 2
 """
 
 KM_PER_DEG = 111.1949
