@@ -11,7 +11,7 @@ from obspy.core import AttribDict
 #from obspy.core.util.geodetics import locations2degrees, gps2DistAzimuth, \
 #    kilometer2degrees
 from obspy.geodetics import locations2degrees, gps2DistAzimuth, \
-    kilometer2degrees
+    kilometer2degrees, degrees2kilometers
 from obspy.taup import getTravelTimes
 import scipy.interpolate as spi
 import scipy as sp
@@ -171,8 +171,7 @@ def get_geometry(stream,coordsys='lonlat',return_center=False,verbose=False):
     else:
         return geometry
 
-def array_transff_freqslowness(stream, slim, sstep, fmin, fmax, fstep,
-                               coordsys='lonlat', correct_3dplane=False,
+def array_transff_freqslowness(stream, inventory, slim, sstep, fmin, fmax, fstep, correct_3dplane=False,
                                static_3D=False, vel_cor=4.):
     """
     Returns array transfer function as a function of slowness difference and
@@ -196,7 +195,8 @@ def array_transff_freqslowness(stream, slim, sstep, fmin, fmax, fstep,
     # geometry = get_geometry(stream, coordsys=coordsys,
     #                         correct_3dplane=correct_3dplane, verbose=False)
 
-    geometry = get_geometry(stream, coordsys=coordsys,verbose=False)
+    #geometry = get_geometry(stream,verbose=False)
+    geometry = get_coords(inventory, returntype="array")
 
     if isinstance(slim, float):
         sxmin = -slim
@@ -563,6 +563,35 @@ def get_spoint(stream, stime, etime):
         frac, ddummy = math.modf(diffend)
         epoint[i] = int(ddummy)
         epoint[i] += negoffset
+    return spoint, epoint
+
+@staticmethod
+def get_stream_offsets(stream, stime, etime):
+    """
+    Calculates start and end offsets relative to stime and etime for each
+    trace in stream in samples.
+
+    :type stime: :class:`~obspy.core.utcdatetime.UTCDateTime`
+    :param stime: Start time
+    :type etime: :class:`~obspy.core.utcdatetime.UTCDateTime`
+    :param etime: End time
+    :returns: start and end sample offset arrays
+    """
+    spoint = np.empty(len(stream), dtype=np.int32, order="C")
+    epoint = np.empty(len(stream), dtype=np.int32, order="C")
+    for i, tr in enumerate(stream):
+        if tr.stats.starttime > stime:
+            msg = "Specified stime %s is smaller than starttime %s " \
+                  "in stream"
+            raise ValueError(msg % (stime, tr.stats.starttime))
+        if tr.stats.endtime < etime:
+            msg = "Specified etime %s is bigger than endtime %s in stream"
+            raise ValueError(msg % (etime, tr.stats.endtime))
+        # now we have to adjust to the beginning of real start time
+        spoint[i] = int(
+            (stime - tr.stats.starttime) * tr.stats.sampling_rate + .5)
+        epoint[i] = int(
+            (tr.stats.endtime - etime) * tr.stats.sampling_rate + .5)
     return spoint, epoint
 
 def beamforming(stream, sll_x, slm_x, sll_y, slm_y, sl_s, frqlow, frqhigh,
@@ -1658,10 +1687,9 @@ def shifttrace_freq(stream, t_shift):
 
 
 """
-NEW STUFF
+NEW STUFF, WHATS WORKING RIGHT NOW!
 """
-
-def get_coords(inventory):
+def get_coords(inventory, returntype="dict"):
     """
     Get the coordinates of the stations in the inventory, independently of the channels,
     better use for arrays, than the channel-dependent core.inventory.inventory.Inventory.get_coordinates() .
@@ -1672,18 +1700,36 @@ def get_coords(inventory):
     :param coords: dictionary with stations of the inventory and its elevation (in km), latitude and longitude
     :type coords: dict
 
+    :param return: type of desired return
+    :type return: dictionary or numpy.array
+
     """
-    coords = {}
-    for network in inventory:
-        for station in network:
-            coords["%s.%s" % (network.code, station.code)] = \
-                {"latitude": station.latitude,
-                 "longitude": station.longitude,
-                 "elevation": float(station.elevation) / 1000.0}
+    if returntype == "dict":
+        coords = {}
+        for network in inventory:
+            for station in network:
+                coords["%s.%s" % (network.code, station.code)] = \
+                    {"latitude": station.latitude,
+                     "longitude": station.longitude,
+                     "elevation": float(station.elevation) / 1000.0}
+
+    if returntype == "array":
+        nstats = len(inventory[0].stations)
+        coords = np.empty((nstats, 3))
+        if len(inventory.networks) == 1:
+            i=0
+            for network in inventory:
+                for station in network:
+                    coords[i,0] = station.latitude
+                    coords[i,1] = station.longitude
+                    coords[i,2] = float(station.elevation) / 1000.0
+                    i += 1
+
     return coords
 
+
 def __coordinate_values(inventory):
-    geo = get_coords(inventory)
+    geo = get_coords(inventory, returntype="dict")
     lats, lngs, hgt = [], [], []
     for coordinates in list(geo.values()):
         lats.append(coordinates["latitude"]),
@@ -1715,14 +1761,14 @@ def plot(inventory):
         plt.show()
 
 def center_of_gravity(inventory):
-    lats, lngs, hgts = __coordinate_values(inventory)
+    lats, lngs, hgts = __coordinate_values(inventory, returntype="dict")
     return {
         "latitude": np.mean(lats),
         "longitude": np.mean(lngs),
         "elevation": np.mean(hgts)}
 
 def geometrical_center(inventory):
-    lats, lngs, hgt = __coordinate_values(inventory)
+    lats, lngs, hgt = __coordinate_values(inventory, returntype="dict")
 
     return {
         "latitude": (np.max(lats) +
@@ -1733,3 +1779,99 @@ def geometrical_center(inventory):
         (np.max(hgt) +
          np.min(hgt)) / 2.0
     }
+
+def aperture(inventory):
+    """
+    The aperture of the array in kilometers.
+    Method:find the maximum of the calculation of  distance of every possible combination of stations
+    """
+    lats, lngs, hgt = __coordinate_values(inventory, returntype="dict")
+    distances = []
+    for i in range(len(lats)):
+        for j in range(len(lats)):
+            if lats[i] == lats[j]:
+                continue
+            distances.append(gps2DistAzimuth(lats[i],lngs[i],
+                lats[j],lngs[j])[0] / 1000.0)
+    return max(distances)
+
+def find_closest_station(inventory, latitude, longitude,
+                         absolute_height_in_km=0.0):
+    """
+    Calculates closest station to a given latitude, longitude and absolute_height_in_km
+    param latitude: latitude of interest, in degrees
+    type latitude: float
+    param longitude: longitude of interest, in degrees
+    type: float
+    param absolute_height_in_km: altitude of interest in km
+    type: float
+    """
+    min_distance = None
+    min_distance_station = None
+
+    lats, lngs, hgt = __coordinate_values(inventory, returntype="dict")
+    
+    x = latitude
+    y = longitude
+    z = absolute_height_in_km
+
+    for i in range(len(lats)):
+        distance = np.sqrt( ((gps2DistAzimuth(lats[i], lngs[i], x, y)[0]) / 1000.0) ** 2  + ( np.abs( np.abs(z) - np.abs(hgt[i]))) ** 2 )
+        if min_distance is None or distance < min_distance:
+            min_distance = distance
+            min_distance_station = inventory[0][i].code
+    return min_distance_station
+
+def plot_transfer_function(stream, inventory, sx=(-10, 10), sy=(-10, 10), sls=0.5, freqmin=0.1, freqmax=4.0,
+                           numfreqs=10):
+    """
+    Plot transfer function (uses array transfer function as a function of
+    slowness difference and frequency).
+
+    :param sx: Min/Max slowness for analysis in x direction.
+    :type sx: (float, float)
+    :param sy: Min/Max slowness for analysis in y direction.
+    :type sy: (float, float)
+    :param sls: step width of slowness grid
+    :type sls: float
+    :param freqmin: Low corner of frequency range for array analysis
+    :type freqmin: float
+    :param freqmax: High corner of frequency range for array analysis
+    :type freqmax: float
+    :param numfreqs: number of frequency values used for computing array
+     transfer function
+    :type numfreqs: int
+    """
+    sllx, slmx = sx
+    slly, slmy = sy
+    sllx = kilometer2degrees(sllx)
+    slmx = kilometer2degrees(slmx)
+    slly = kilometer2degrees(slly)
+    slmy = kilometer2degrees(slmy)
+    sls = kilometer2degrees(sls)
+
+    stepsfreq = (freqmax - freqmin) / float(numfreqs)
+    transff = array_transff_freqslowness(stream, inventory, (sllx, slmx, slly, slmy),
+                                               sls, freqmin, freqmax,
+                                               stepsfreq)
+
+    sllx = degrees2kilometers(sllx)
+    slmx = degrees2kilometers(slmx)
+    slly = degrees2kilometers(slly)
+    slmy = degrees2kilometers(slmy)
+    sls = degrees2kilometers(sls)
+
+    slx = np.arange(sllx, slmx + sls, sls)
+    sly = np.arange(slly, slmy + sls, sls)
+    fig = plt.figure(figsize=(12, 12))
+    ax = fig.add_axes([0.1, 0.1, 0.8, 0.8])
+
+    # ax.pcolormesh(slx, sly, transff.T)
+    ax.contour(sly, slx, transff.T, 10)
+    ax.set_xlabel('slowness [s/deg]')
+    ax.set_ylabel('slowness [s/deg]')
+    ax.set_ylim(slx[0], slx[-1])
+    ax.set_xlim(sly[0], sly[-1])
+    plt.show()
+
+
