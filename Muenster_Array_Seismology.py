@@ -1737,15 +1737,23 @@ def __coordinate_values(inventory):
         hgt.append(coordinates["elevation"])
     return lats, lngs, hgt
 
-def plot(inventory):
+def plot(inventory, projection="local"):
     """
     Function to plot the geometry of the array, 
     including its center of gravity and geometrical center
 
+    :type inventory: obspy.core.inventory.inventory.Inventory
     :param inventory: Inventory to be plotted
+
+    :type projection: strg, optional
+    :param projection: The map projection. Currently supported are:
+
+    * ``"global"`` (Will plot the whole world.)
+    * ``"ortho"`` (Will center around the mean lat/long.)
+    * ``"local"`` (Will plot around local events)   
     """
     if inventory:
-        inventory.plot(projection="local", show=False)
+        inventory.plot(projection, show=False)
         bmap = plt.gca().basemap
 
         grav = center_of_gravity(inventory)
@@ -1761,14 +1769,14 @@ def plot(inventory):
         plt.show()
 
 def center_of_gravity(inventory):
-    lats, lngs, hgts = __coordinate_values(inventory, returntype="dict")
+    lats, lngs, hgts = __coordinate_values(inventory)
     return {
         "latitude": np.mean(lats),
         "longitude": np.mean(lngs),
         "elevation": np.mean(hgts)}
 
 def geometrical_center(inventory):
-    lats, lngs, hgt = __coordinate_values(inventory, returntype="dict")
+    lats, lngs, hgt = __coordinate_values(inventory)
 
     return {
         "latitude": (np.max(lats) +
@@ -1785,7 +1793,7 @@ def aperture(inventory):
     The aperture of the array in kilometers.
     Method:find the maximum of the calculation of  distance of every possible combination of stations
     """
-    lats, lngs, hgt = __coordinate_values(inventory, returntype="dict")
+    lats, lngs, hgt = __coordinate_values(inventory)
     distances = []
     for i in range(len(lats)):
         for j in range(len(lats)):
@@ -1809,7 +1817,7 @@ def find_closest_station(inventory, latitude, longitude,
     min_distance = None
     min_distance_station = None
 
-    lats, lngs, hgt = __coordinate_values(inventory, returntype="dict")
+    lats, lngs, hgt = __coordinate_values(inventory)
     
     x = latitude
     y = longitude
