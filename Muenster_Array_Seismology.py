@@ -5,6 +5,7 @@ import numpy as np
 import os
 import shutil
 import matplotlib.pyplot as plt
+from mpl_toolkits.basemap import Basemap
 from matplotlib.ticker import MaxNLocator
 from obspy import UTCDateTime, Stream
 from obspy.core import AttribDict
@@ -1881,5 +1882,45 @@ def plot_transfer_function(stream, inventory, sx=(-10, 10), sy=(-10, 10), sls=0.
     ax.set_ylim(slx[0], slx[-1])
     ax.set_xlim(sly[0], sly[-1])
     plt.show()
+
+
+def plot_gcp(slat, slon, qlat, qlon, plat, plon):
+    
+    global m
+    # lon_0 is central longitude of projection, lat_0 the central latitude.
+    # resolution = 'c' means use crude resolution coastlines, 'l' means low, 'h' high etc.
+    # zorder is the plotting level, 0 is the lowest, 1 = one level higher ...   
+    #m = Basemap(projection='nsper',lon_0=20, lat_0=25,resolution='c')
+    m = Basemap(projection='kav7',lon_0=-45, resolution='c')   
+    qx, qy = m(qlon, qlat)
+    sx, sy = m(slon, slat)
+    px, py = m(plon, plat)
+    m.drawmapboundary(fill_color='#B4FFFF')
+    m.fillcontinents(color='#00CC00',lake_color='#B4FFFF', zorder=0)
+    #import event coordinates, with symbol (* = Star)
+    m.scatter(qx, qy, 80, marker='*', color= '#004BCB', zorder=2)
+    #import station coordinates, with symbol (^ = triangle)
+    m.scatter(sx, sy, 80, marker='^', color='red', zorder=2)
+    #import bouncepoints coord.
+    m.scatter(px, py, 10, marker='d', color='yellow', zorder=2)
+
+    m.drawcoastlines(zorder=1)
+    #greatcirclepath drawing from station to event
+    #Check if qlat has a length
+    try:
+        for i in range(len(qlat)):
+            m.drawgreatcircle(qlon[i], qlat[i], slon[i], slat[i], linewidth = 1, color = 'black', zorder=1)
+    except TypeError:       
+        m.drawgreatcircle(qlon, qlat, slon, slat, linewidth = 1, color = 'black', zorder=1)
+    # draw parallels and meridians.
+    m.drawparallels(np.arange(-90.,120.,30.), zorder=1)
+    m.drawmeridians(np.arange(0.,420.,60.), zorder=1)
+    plt.title("")
+
+    #plt.show: interactive mode
+    #plt.savefig: output plot as file 
+    plt.show()
+#   plt.savefig('gcp_with_bp_from_plotfile.png', format="png", dpi=900)
+
 
 
