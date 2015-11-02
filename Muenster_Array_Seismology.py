@@ -5,6 +5,7 @@ import numpy as np
 import os
 import shutil
 import matplotlib.pyplot as plt
+from mpl_toolkits.basemap import Basemap
 from matplotlib.ticker import MaxNLocator
 from obspy import UTCDateTime, Stream
 from obspy.core import AttribDict
@@ -25,6 +26,8 @@ from scipy.integrate import cumtrapz
 from obspy.core import Stream
 from obspy.signal.headers import clibsignal
 from obspy.signal.invsim import cosTaper
+from obspy.clients.fdsn import Client
+
 
 
 KM_PER_DEG = 111.1949
@@ -1883,3 +1886,117 @@ def plot_transfer_function(stream, inventory, sx=(-10, 10), sy=(-10, 10), sls=0.
     plt.show()
 
 
+def plot_gcp(slat, slon, qlat, qlon, plat, plon, savefigure=None):
+    
+    global m
+    # lon_0 is central longitude of projection, lat_0 the central latitude.
+    # resolution = 'c' means use crude resolution coastlines, 'l' means low, 'h' high etc.
+    # zorder is the plotting level, 0 is the lowest, 1 = one level higher ...   
+    #m = Basemap(projection='nsper',lon_0=20, lat_0=25,resolution='c')
+    m = Basemap(projection='kav7',lon_0=-45, resolution='c')   
+    qx, qy = m(qlon, qlat)
+    sx, sy = m(slon, slat)
+    px, py = m(plon, plat)
+    m.drawmapboundary(fill_color='#B4FFFF')
+    m.fillcontinents(color='#00CC00',lake_color='#B4FFFF', zorder=0)
+    #import event coordinates, with symbol (* = Star)
+    m.scatter(qx, qy, 80, marker='*', color= '#004BCB', zorder=2)
+    #import station coordinates, with symbol (^ = triangle)
+    m.scatter(sx, sy, 80, marker='^', color='red', zorder=2)
+    #import bouncepoints coord.
+    m.scatter(px, py, 10, marker='d', color='yellow', zorder=2)
+
+    m.drawcoastlines(zorder=1)
+    #greatcirclepath drawing from station to event
+    #Check if qlat has a length
+    try:
+        for i in range(len(qlat)):
+            m.drawgreatcircle(qlon[i], qlat[i], slon[i], slat[i], linewidth = 1, color = 'black', zorder=1)
+    except TypeError:       
+        m.drawgreatcircle(qlon, qlat, slon, slat, linewidth = 1, color = 'black', zorder=1)
+    # draw parallels and meridians.
+    m.drawparallels(np.arange(-90.,120.,30.), zorder=1)
+    m.drawmeridians(np.arange(0.,420.,60.), zorder=1)
+    plt.title("")
+    
+    if savefigure:
+        plt.savefig('plot_gcp.png', format="png", dpi=900)
+    else:
+        plt.show()
+
+def data_request(client_name, start, end, minmag, net, scode="*", channels="BHZ", minlat=None,
+                 maxlat=None,minlon=None,maxlon=None, mind=None, maxd=None, savefile=False):
+    ###Looking for events###
+    client = Client(client_name)
+    catalog = client.get_events(starttime=start, endtime = end,
+                            minmagnitude = minmag)
+                  
+
+    inventory = []
+    st = []
+    event = []
+    origin = []
+    slat = []
+    slon = []
+    elat = []
+    elon = []
+    depth = []
+    epidist = []
+    tstart = []
+    tend = []
+
+    m = TauPyModel(model="ak135")
+    Plist = ["P"]
+    for i in range(len(catalog)):
+        event.append(catalog[i])
+        origin.append(event[i].origins)
+        station_stime = UTCDateTime(origin[i][0].time - 3600*24)
+        station_etime = UTCDateTime(origin[i][0].time + 3600*24)
+        inventory.append(client.get_stations(network=net, station=scode, level="station", 
+                            starttime=station_stime, endtime=station_etime, 
+                            minlatitude=minlat, maxlatitude=maxlat, minlongitude=minlon, maxlongitude=maxlon,
+                            maxdepth=maxd, mindepth=mind))
+
+        cog=MAS.center_of_gravity(inventory[i])
+        slat.append(cog['latitude'])
+        slon.append(cog['longitude'])
+        elat.append(origin[i][0].latitude)
+        elon.append(origin[i][0].longitude)
+        depth.append(origin[i][0].depth/1000)
+        epidist.append(locations2degrees(slat[i],slon[i],elat[i],elon[i]))
+        arrivaltime = m.get_travel_times(source_depth_in_km=depth[i],distance_in_degree=epidist[i],
+                                            phase_list=Plist)
+        P_arrival_time = arrivaltime[0]
+        Ptime = P_arrival_time.time
+        tstart.append(UTCDateTime(origin[i][0].time + Ptime - 3 * 60))
+        tend.append(UTCDateTime(origin[i][0].time + Ptime + 10 * 60))
+
+        network = inventory[i]
+        stations = []
+        stations_str = ""
+        for station in network[0]:
+            stations.append(station.code)
+        stations_str = ','.join(map(str,stations))
+        location = "*"
+        st.append(client.get_waveforms(network[0].code, stations_str, location, channels,
+                                  tstart[i], tend[i]))
+        if savefile:
+            st[i].write(event[i].origins.time + ".MSEED", format="MSEED")
+    return(catalog, inventory, st)
+
+"""
+def plot_data(stream, zoom=1, t_window=None):
+    plot_inc = 0.1
+    window = []
+    for i in range(0,stream.count(),4):
+        tr = stream[i]
+        trdata_plot = tr.data * zoom + i * plot_inc
+        plt.plot(tr.times(), trdata_plot, 'black')
+
+
+    if savefigure:
+        plt.savefig('plot_data.png', format="png", dpi=900)
+    else:
+        plt.show()
+
+"""
