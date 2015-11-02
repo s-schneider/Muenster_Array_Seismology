@@ -1886,7 +1886,11 @@ def plot_transfer_function(stream, inventory, sx=(-10, 10), sy=(-10, 10), sls=0.
     plt.show()
 
 
+<<<<<<< HEAD
 def plot_gcp(slat, slon, qlat, qlon, plat, plon, savefigure=None):
+=======
+def plot_gcp(slat, slon, qlat, qlon, plat, plon):
+>>>>>>> 42fedb717ad0da7928d9a1c15e8d977a7477c5ba
     
     global m
     # lon_0 is central longitude of projection, lat_0 the central latitude.
@@ -1918,6 +1922,7 @@ def plot_gcp(slat, slon, qlat, qlon, plat, plon, savefigure=None):
     m.drawparallels(np.arange(-90.,120.,30.), zorder=1)
     m.drawmeridians(np.arange(0.,420.,60.), zorder=1)
     plt.title("")
+<<<<<<< HEAD
     
     if savefigure:
         plt.savefig('plot_gcp.png', format="png", dpi=900)
@@ -2000,3 +2005,13 @@ def plot_data(stream, zoom=1, t_window=None):
         plt.show()
 
 """
+=======
+
+    #plt.show: interactive mode
+    #plt.savefig: output plot as file 
+    plt.show()
+#   plt.savefig('gcp_with_bp_from_plotfile.png', format="png", dpi=900)
+
+
+
+>>>>>>> 42fedb717ad0da7928d9a1c15e8d977a7477c5ba
