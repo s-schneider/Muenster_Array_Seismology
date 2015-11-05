@@ -1926,7 +1926,16 @@ def plot_gcp(slat, slon, qlat, qlon, plat, plon, savefigure=None):
 
 def data_request(client_name, start, end, minmag, net, scode="*", channels="BHZ", minlat=None,
                  maxlat=None,minlon=None,maxlon=None, mind=None, maxd=None, savefile=False):
-    ###Looking for events###
+"""
+dl="IRIS"
+s = UTCDateTime("2011-01-01T00:00:00")
+e = UTCDateTime("2011-12-31T23:59:59")
+mm=9.0
+nw="TA"
+stats="*"
+
+catalog, inv, st  = data_request(client_name = dl, start = s, end = e, minmag = mm, net = nw, scode = stats, savefile=True)
+"""
     client = Client(client_name)
     catalog = client.get_events(starttime=start, endtime = end,
                             minmagnitude = minmag, maxdepth=maxd, mindepth=mind)                         
