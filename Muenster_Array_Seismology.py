@@ -1925,12 +1925,13 @@ def plot_gcp(slat, slon, qlat, qlon, plat, plon, savefigure=None):
         plt.show()
 
 def data_request(client_name, start, end, minmag, net, scode="*", channels="BHZ", minlat=None,
-                 maxlat=None,minlon=None,maxlon=None, mind=None, maxd=None, savefile=False):
+                 maxlat=None,minlon=None,maxlon=None, savefile=False):
     ###Looking for events###
     client = Client(client_name)
     catalog = client.get_events(starttime=start, endtime = end,
                             minmagnitude = minmag)
-                  
+    #if bedingung einbauen, falls catalog leer
+                         
 
     inventory = []
     st = []
@@ -1954,8 +1955,7 @@ def data_request(client_name, start, end, minmag, net, scode="*", channels="BHZ"
         station_etime = UTCDateTime(origin[i][0].time + 3600*24)
         inventory.append(client.get_stations(network=net, station=scode, level="station", 
                             starttime=station_stime, endtime=station_etime, 
-                            minlatitude=minlat, maxlatitude=maxlat, minlongitude=minlon, maxlongitude=maxlon,
-                            maxdepth=maxd, mindepth=mind))
+                            minlatitude=minlat, maxlatitude=maxlat, minlongitude=minlon, maxlongitude=maxlon))
 
         cog=MAS.center_of_gravity(inventory[i])
         slat.append(cog['latitude'])
@@ -1981,7 +1981,12 @@ def data_request(client_name, start, end, minmag, net, scode="*", channels="BHZ"
         st.append(client.get_waveforms(network[0].code, stations_str, location, channels,
                                   tstart[i], tend[i]))
         if savefile:
-            st[i].write(event[i].origins.time + ".MSEED", format="MSEED")
+                 stname = str(event[i].origins[0].time).split('.')[0] + ".MSEED"
+                 invname = stname + "_inv.xml"
+                 catname = stname + "_cat.xml"
+                 st[i].write(stname, format="MSEED")
+                 inventory[i].write(invname, format="STATIONXML")
+                 catalog[i].write(catname, format="QUAKEML")
     return(catalog, inventory, st)
 
 """
