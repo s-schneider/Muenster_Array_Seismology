@@ -1929,9 +1929,7 @@ def data_request(client_name, start, end, minmag, net, scode="*", channels="BHZ"
     ###Looking for events###
     client = Client(client_name)
     catalog = client.get_events(starttime=start, endtime = end,
-                            minmagnitude = minmag, maxdepth=maxd, mindepth=mind)
-    #if bedingung einbauen, falls catalog leer
-                         
+                            minmagnitude = minmag, maxdepth=maxd, mindepth=mind)                         
 
     inventory = []
     st = []
@@ -2003,5 +2001,4 @@ def plot_data(stream, zoom=1, t_window=None):
         plt.savefig('plot_data.png', format="png", dpi=900)
     else:
         plt.show()
-
 """
