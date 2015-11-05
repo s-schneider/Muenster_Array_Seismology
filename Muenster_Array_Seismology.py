@@ -1925,11 +1925,11 @@ def plot_gcp(slat, slon, qlat, qlon, plat, plon, savefigure=None):
         plt.show()
 
 def data_request(client_name, start, end, minmag, net, scode="*", channels="BHZ", minlat=None,
-                 maxlat=None,minlon=None,maxlon=None, savefile=False):
+                 maxlat=None,minlon=None,maxlon=None, mind=None, maxd=None, savefile=False):
     ###Looking for events###
     client = Client(client_name)
     catalog = client.get_events(starttime=start, endtime = end,
-                            minmagnitude = minmag)
+                            minmagnitude = minmag, maxdepth=maxd, mindepth=mind)
     #if bedingung einbauen, falls catalog leer
                          
 
